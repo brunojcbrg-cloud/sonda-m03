@@ -44,6 +44,11 @@ celular). Depois use o botão <em>Copiar resultado</em> e cole pro Bruno no What
 
 <section>
   <h2>2) Caminho B — <code>drive.file</code></h2>
+  <p style="font-size:0.9rem"><strong>Este teste só vale numa conta que ainda não autorizou
+  o caminho C.</strong> O Google acumula os escopos já concedidos, então rodar C antes
+  contamina o B. Se já rodou C nesta conta, revogue o acesso em
+  <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>
+  e clique só neste botão. A página avisa sozinha se o resultado estiver contaminado.</p>
   <button class="primario" id="btnB">Entrar e testar drive.file</button>
   <button id="copyB" disabled>Copiar resultado</button>
   <pre id="outB">(toque no botão azul)</pre>
@@ -77,7 +82,7 @@ async function copiarTexto(texto, alvoStatus) {
   }
 }
 
-function testarEscopo(scope, outEl, botaoCopiar) {
+function testarEscopo(scope, outEl, botaoCopiar, proibido) {
   outEl.textContent = "Abrindo janela do Google...";
   const tc = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -90,6 +95,16 @@ function testarEscopo(scope, outEl, botaoCopiar) {
       }
       const token = resp.access_token;
       let log = `Escopo concedido: ${resp.scope}\n\n`;
+
+      if (proibido && (resp.scope || "").includes(proibido)) {
+        log =
+          `*** RESULTADO INVALIDO - NAO USE ***\n` +
+          `O token veio com ${proibido} junto, herdado de um teste anterior nesta mesma\n` +
+          `conta (o Google acumula escopos ja concedidos). Os HTTP 200 abaixo podem vir\n` +
+          `desse escopo, e nao do que este botao diz testar.\n\n` +
+          `Para medir limpo: revogue o acesso do app em\n` +
+          `https://myaccount.google.com/permissions e clique SO neste botao.\n\n` + log;
+      }
 
       try {
         const rMe = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -140,7 +155,7 @@ window.addEventListener("load", () => {
   document.getElementById("btnC").onclick = () =>
     testarEscopo("https://www.googleapis.com/auth/drive.readonly", outC, copyC);
   document.getElementById("btnB").onclick = () =>
-    testarEscopo("https://www.googleapis.com/auth/drive.file", outB, copyB);
+    testarEscopo("https://www.googleapis.com/auth/drive.file", outB, copyB, "drive.readonly");
 
   copyC.onclick = () => copiarTexto("[C drive.readonly]\n" + outC.textContent, status);
   copyB.onclick = () => copiarTexto("[B drive.file]\n" + outB.textContent, status);
