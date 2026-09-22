@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sonda M0.3 — escopo do Drive</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 1.2rem 1rem 3rem; line-height: 1.5; }
+  button { font-size: 1.05rem; padding: 0.85rem 1.1rem; margin: 0.3rem 0.3rem 0.3rem 0; cursor: pointer; border-radius: 8px; border: 1px solid #888; background: #fff; }
+  button.primario { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+  button:disabled { opacity: 0.5; }
+  pre { background: #f4f4f4; padding: 1rem; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: 0.85rem; }
+  .ok { color: #0a7a2f; font-weight: bold; }
+  .fail { color: #b40000; font-weight: bold; }
+  section { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+  h1 { font-size: 1.4rem; }
+  h2 { margin-top: 0; font-size: 1.15rem; }
+  .aviso { background: #fff8e1; border: 1px solid #ffd54f; border-radius: 8px; padding: 0.8rem 1rem; }
+  .aviso p { margin: 0.5rem 0; }
+</style>
+</head>
+<body>
+<h1>Sonda M0.3 — qual escopo do Drive funciona</h1>
+
+<p>Isabela: é um teste rápido, de uns 2 minutos. São dois botões. Cada um abre a tela do Google
+pedindo pra você entrar e autorizar. <strong>Entre com a sua conta Google</strong> (a mesma do
+celular). Depois use o botão <em>Copiar resultado</em> e cole pro Bruno no WhatsApp.</p>
+
+<div class="aviso">
+  <p><strong>Vai aparecer uma tela dizendo que o app não é verificado pelo Google.</strong> É
+  esperado — é um app caseiro do Bruno, ainda sem o selo. Toque em <strong>Avançado</strong> e
+  depois no link de baixo, <strong>"Acessar ... (não seguro)"</strong>, para continuar.</p>
+  <p>Se a janela do Google não abrir, o navegador bloqueou o popup: procure o aviso na barra de
+  endereço, permita, e toque no botão de novo.</p>
+</div>
+
+<section>
+  <h2>1) Caminho C — <code>drive.readonly</code></h2>
+  <button class="primario" id="btnC">Entrar e testar drive.readonly</button>
+  <button id="copyC" disabled>Copiar resultado</button>
+  <pre id="outC">(toque no botão azul)</pre>
+</section>
+
+<section>
+  <h2>2) Caminho B — <code>drive.file</code></h2>
+  <button class="primario" id="btnB">Entrar e testar drive.file</button>
+  <button id="copyB" disabled>Copiar resultado</button>
+  <pre id="outB">(toque no botão azul)</pre>
+</section>
+
+<section>
+  <h2>3) Mandar pro Bruno</h2>
+  <p>Depois de rodar os dois, toque aqui e cole no WhatsApp:</p>
+  <button class="primario" id="copyTudo">Copiar os dois resultados</button>
+  <p id="statusCopia"></p>
+</section>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const CLIENT_ID = "636980128795-eirkcjfe277vatprtd1enoptfqik01us.apps.googleusercontent.com";
+const FOLDER_ID = "12pYII_ieY-hhn51c-x_JnJTimYRnveaP";
+const FILE_ID = "1zvz4ujXtZEGD6kqvllCh46hfaJr-zsRB";
+
+function fmt(obj) {
+  return typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+}
+
+async function copiarTexto(texto, alvoStatus) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    if (alvoStatus) alvoStatus.textContent = "Copiado! Agora é só colar no WhatsApp.";
+    return true;
+  } catch (e) {
+    if (alvoStatus) alvoStatus.textContent = "Não consegui copiar sozinho — segure o dedo no texto cinza e copie à mão, ou mande um print.";
+    return false;
+  }
+}
+
+function testarEscopo(scope, outEl, botaoCopiar) {
+  outEl.textContent = "Abrindo janela do Google...";
+  const tc = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: "openid email " + scope,
+    callback: async (resp) => {
+      if (resp.error) {
+        outEl.innerHTML = `<span class="fail">FALHOU no consentimento</span>\n` + fmt(resp);
+        botaoCopiar.disabled = false;
+        return;
+      }
+      const token = resp.access_token;
+      let log = `Escopo concedido: ${resp.scope}\n\n`;
+
+      try {
+        const rMe = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const jMe = await rMe.json();
+        log = `Conta logada: ${jMe.email || "(desconhecida)"}\n\n` + log;
+      } catch (e) {
+        log = `Não consegui identificar a conta: ${e}\n\n` + log;
+      }
+
+      try {
+        const rFolder = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${FOLDER_ID}?fields=id,name,owners`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const jFolder = await rFolder.json();
+        log += `GET /files/{pasta} -> HTTP ${rFolder.status}\n${fmt(jFolder)}\n\n`;
+      } catch (e) {
+        log += `GET /files/{pasta} -> erro de rede: ${e}\n\n`;
+      }
+
+      try {
+        const rFile = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const text = await rFile.text();
+        log += `GET /files/{arquivo}?alt=media -> HTTP ${rFile.status}\n${text.slice(0, 300)}\n`;
+      } catch (e) {
+        log += `GET /files/{arquivo}?alt=media -> erro de rede: ${e}\n`;
+      }
+
+      outEl.innerHTML = `<span class="ok">Concluído — leia os códigos HTTP acima</span>\n\n` + log;
+      botaoCopiar.disabled = false;
+    },
+  });
+  tc.requestAccessToken({ prompt: "consent" });
+}
+
+window.addEventListener("load", () => {
+  const outC = document.getElementById("outC");
+  const outB = document.getElementById("outB");
+  const copyC = document.getElementById("copyC");
+  const copyB = document.getElementById("copyB");
+  const status = document.getElementById("statusCopia");
+
+  document.getElementById("btnC").onclick = () =>
+    testarEscopo("https://www.googleapis.com/auth/drive.readonly", outC, copyC);
+  document.getElementById("btnB").onclick = () =>
+    testarEscopo("https://www.googleapis.com/auth/drive.file", outB, copyB);
+
+  copyC.onclick = () => copiarTexto("[C drive.readonly]\n" + outC.textContent, status);
+  copyB.onclick = () => copiarTexto("[B drive.file]\n" + outB.textContent, status);
+  document.getElementById("copyTudo").onclick = () =>
+    copiarTexto(
+      "SONDA M0.3 (" + new Date().toISOString() + ")\n\n" +
+      "[C drive.readonly]\n" + outC.textContent + "\n\n" +
+      "[B drive.file]\n" + outB.textContent,
+      status
+    );
+});
+</script>
+</body>
+</html>
