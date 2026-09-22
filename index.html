@@ -96,6 +96,16 @@ function testarEscopo(scope, outEl, botaoCopiar, proibido) {
       const token = resp.access_token;
       let log = `Escopo concedido: ${resp.scope}\n\n`;
 
+      if (!(resp.scope || "").includes(scope)) {
+        log =
+          `*** NAO MEDIDO - o escopo testado nao foi concedido ***\n` +
+          `Pedi ${scope},\n` +
+          `mas o token voltou sem ele. Na tela do Google existe uma CAIXA DE SELECAO\n` +
+          `por permissao, e ela vem DESMARCADA. Sem marcar, o Google deixa entrar mas\n` +
+          `nao concede o acesso ao Drive - e os 403 abaixo sao so isso, nao um teste.\n` +
+          `Refaca marcando a caixa antes de continuar.\n\n` + log;
+      }
+
       if (proibido && (resp.scope || "").includes(proibido)) {
         log =
           `*** RESULTADO INVALIDO - NAO USE ***\n` +
